@@ -1,6 +1,7 @@
 import os
-
 import psycopg2
+import psycopg2.extras
+from decimal import Decimal
 from flask import Flask, flash, redirect, render_template, request, session
 from flask_session import Session
 from tempfile import mkdtemp
@@ -38,7 +39,9 @@ app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
 
 # Configure CS50 Library to use SQLite database
-db = SQL("sqlite:///finance.db")
+uri = os.getenv("DATABASE_URL")
+conn = psycopg2.connect(uri)
+db = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
 # Make sure API key is set
 if not os.environ.get("API_KEY"):
@@ -52,16 +55,26 @@ def index():
     user = session["user_id"]
 
     # Query database for stocks owned
-    stocks = db.execute("SELECT symbol, SUM(shares) AS shares FROM history GROUP BY symbol HAVING id = ? AND SUM(shares) > 0", user)
+    query = '''
+        SELECT symbol, SUM(shares) AS shares
+        FROM history
+        GROUP BY symbol,
+        id HAVING id = %s AND SUM(shares) > 0
+    '''
+    db.execute(query, (user,))
+    stocks = db.fetchall()
 
     # Store cash value
-    row = db.execute("SELECT cash FROM users WHERE id = ?", user)
+    db.execute("SELECT cash FROM users WHERE id = %s", (user,))
+    row = db.fetchall()
     balance = row[0]["cash"]
     sum = balance
 
     # Index without stocks bought
     if len(stocks) == 0:
         return render_template("index.html", balance=balance, sum=sum)
+
+    print(stocks)
 
     # Use lookup to find price of all stocks
     for stock in stocks:
@@ -71,11 +84,13 @@ def index():
         price = quote['price']
         total = price * int(stock["shares"])
 
+        print(stocks)
+
         # Incorporate price into dict
         stock["price"] = price
         stock["total"] = total
 
-        sum += total
+        sum += Decimal(total)
 
     return render_template("index.html", stocks=stocks, balance=balance, sum=sum)
 
@@ -105,7 +120,8 @@ def buy():
 
             # Save user id
             user = session["user_id"]
-            row = db.execute("SELECT cash FROM users WHERE id = ?", user)
+            db.execute("SELECT cash FROM users WHERE id = %s", (user,))
+            row = db.fetchall()
 
             # Check cash reserves
             if row[0]["cash"] < cost:
@@ -113,14 +129,16 @@ def buy():
 
             else:
                 # New cash total
-                balance = row[0]["cash"] - cost
+                balance = row[0]["cash"] - Decimal(cost)
 
                 # Decrease user cash
-                db.execute("UPDATE users SET cash=? WHERE id=?", balance, user)
+                db.execute("UPDATE users SET cash=%s WHERE id=%s", (balance, user,))
 
                 # Insert transaction into table
-                db.execute("INSERT INTO history (symbol, shares, price, date, id) VALUES(?, ?, ?, CURRENT_TIMESTAMP, ?)",
-                           symbol, shares, quote["price"], user)
+                db.execute("INSERT INTO history (symbol, shares, price, date, id) VALUES(%s, %s, %s, CURRENT_TIMESTAMP, %s)",
+                           (symbol, shares, quote["price"], user,))
+
+                conn.commit()
 
                 return redirect("/")
 
@@ -140,7 +158,8 @@ def history():
     """Show history of transactions"""
     user = session["user_id"]
 
-    stocks = db.execute("SELECT * FROM history WHERE id = ?", user)
+    db.execute("SELECT * FROM history WHERE id = %s", (user,))
+    stocks = db.fetchall()
 
     return render_template("history.html", stocks=stocks)
 
@@ -164,7 +183,12 @@ def login():
             return apology("must provide password", 403)
 
         # Query database for username
-        rows = db.execute("SELECT * FROM users WHERE username = ?", request.form.get("username"))
+        query = '''
+            SELECT * FROM users WHERE username = %s
+        '''
+        db.execute(query, (request.form.get("username"),) )
+        rows = db.fetchall()
+        print(rows)
 
         # Ensure username exists and password is correct
         if len(rows) != 1 or not check_password_hash(rows[0]["hash"], request.form.get("password")):
@@ -223,8 +247,13 @@ def register():
         password = request.form.get("password")
         confirmation = request.form.get("confirmation")
 
-        rows = db.execute("SELECT * FROM users WHERE username = ?", username)
+        query = '''
+            SELECT * FROM users WHERE username = %s
+        '''
 
+        db.execute(query, (username,))
+        rows = db.fetchall()
+        
         # Ensure the username was submitted
         if not username:
             return apology("must provide username", 400)
@@ -251,7 +280,9 @@ def register():
                 password, method="pbkdf2:sha256", salt_length=16
             )
             # Insert the new user
-            db.execute("INSERT INTO users (username, hash) VALUES (?, ?) ", username, hash)
+            db.execute("INSERT INTO users (username, hash) VALUES (%s, %s) ", (username, hash,))
+
+            conn.commit()
 
             # Redirect user to home page
             return redirect("/")
@@ -272,7 +303,8 @@ def settings():
         confirmation = request.form.get("confirmation")
 
         # Query database for username
-        rows = db.execute("SELECT * FROM users WHERE id = ?", user)
+        db.execute("SELECT * FROM users WHERE id = %s", (user,))
+        rows = db.fetchall()
 
         # Ensure all fields entered
         if not password or not newPassword or not confirmation:
@@ -293,7 +325,8 @@ def settings():
             )
 
             # Update password
-            db.execute("UPDATE users SET hash = ? WHERE id = ?", hash, user)
+            db.execute("UPDATE users SET hash = %s WHERE id = %s", (hash, user,))
+            conn.commit()
 
             return redirect("/")
 
@@ -308,14 +341,31 @@ def sell():
 
     # Find user stocks
     user = session["user_id"]
-    stocks = db.execute("SELECT symbol, SUM(shares) FROM history GROUP BY symbol HAVING id = ? AND SUM(shares) > 0", user)
+    query = '''
+        SELECT symbol, SUM(shares) 
+        FROM history 
+        GROUP BY symbol, id
+        HAVING id = %s AND SUM(shares) > 0
+    '''
+    db.execute(query, (user,))
+
+    stocks = db.fetchall()
 
     if request.method == "POST":
         # POST: Update user cash
         symbol = str(request.form.get("symbol"))
         shares = int(request.form.get("shares"))
 
-        items = db.execute("SELECT SUM(shares) AS shares FROM history GROUP BY symbol HAVING id = ? AND symbol = ?", user, symbol)
+        query = '''
+            SELECT SUM(shares) AS shares 
+            FROM history 
+            GROUP BY symbol, id
+            HAVING id = %s AND symbol = %s
+        '''
+        db.execute(query, (user, symbol,))
+
+        items = db.fetchall()
+
         owned = items[0]["shares"]
 
         if len(items) != 1:
@@ -331,15 +381,18 @@ def sell():
         owned = owned + shares
 
         # Find new balance
-        row = db.execute("SELECT cash FROM users WHERE id = ?", user)
-        balance = sale + row[0]["cash"]
+        db.execute("SELECT cash FROM users WHERE id = %s", (user,))
+        row = db.fetchall()
+
+        balance = Decimal(sale) + row[0]["cash"]
 
         # Update user cash and stocks
-        db.execute("UPDATE users SET cash=? WHERE id=?", balance, user)
+        db.execute("UPDATE users SET cash=%s WHERE id=%s", (balance, user,))
+        conn.commit()
 
         # Update tranasction history
-        db.execute("INSERT INTO history (symbol, shares, price, date, id) VALUES(?, ?, ?, CURRENT_TIMESTAMP, ?)",
-                   symbol, shares, quote["price"], user)
+        db.execute("INSERT INTO history (symbol, shares, price, date, id) VALUES(%s, %s, %s, CURRENT_TIMESTAMP, %s)",
+                   (symbol, shares, quote["price"], user,))
         return redirect("/")
 
     # GET: Display form to sell stock
