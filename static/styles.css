@@ -1,7 +1,15 @@
+body {
+}
+
 nav .navbar-brand
 {
     /* size for brand */
-    font-size: xx-large;
+    font-size: large;
+}
+
+.fa {
+    color: white;
+    margin-right: 20px;
 }
 
 /* Colors for brand */
@@ -33,6 +41,8 @@ main .form-control
 
 main
 {
+    width: 100%;
+
     /* Scroll horizontally as needed */
     overflow-x: auto;
 
