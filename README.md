@@ -14,3 +14,10 @@ Flask, Postgres, Bootstrap
 - User registration
 - User athentication
 - Change password
+
+## Things to add for fun
+- Access historical stock prices
+- Visualization of portfolio returns over time + other stats
+- Visualization of stock price over time
+- Take a look at algo trading libraries
+- Jazz up the UI
