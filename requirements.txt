@@ -1,0 +1,5 @@
+gurnicorn
+psycopg2
+Flask
+Flask-Session
+requests

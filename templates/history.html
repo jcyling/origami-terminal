@@ -1,0 +1,33 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Log In
+{% endblock %}
+
+{% block main %}
+    <div>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Shares</th>
+                    <th>Price</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                    {% for stock in stocks %}
+                    <tr>
+                        <td>{{stock.symbol}}</td>
+                        <td>{{stock.shares}}</td>
+                        <td>{{stock.price | usd }}</td>
+                        <td>{{stock.date}}</td>
+                    </tr>
+                    {% endfor %}
+            </tbody>
+
+        </table>
+    </div>
+
+
+{% endblock %}
