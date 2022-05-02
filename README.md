@@ -1,7 +1,9 @@
 <img src="/static/favicon.ico" height="150px">
 
 # Origami Terminal
-This is a web application for a paper trading portfolio that allows users to buy and sell stocks with a starting fund of $10,000 USD. It uses real-time data from a third-parti API. 
+This is a web application for a paper trading portfolio that allows users to buy and sell stocks with a starting fund of $10,000 USD. It uses real-time data from a third-party API. 
+
+![Front page displaying a user's portfolio](/static/images/origamiTerminal-index-1.png)
 
 ## Libraries/Technologies Used
 Flask, Postgres, Bootstrap
@@ -16,6 +18,8 @@ Flask, Postgres, Bootstrap
 - Change password
 
 ## Things to add for fun
+- Visualize current portfolio composition
+- Create demo user for app demo
 - Access historical stock prices
 - Visualization of portfolio returns over time + other stats
 - Visualization of stock price over time
