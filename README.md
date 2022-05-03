@@ -6,7 +6,10 @@ This is a web application for a paper trading portfolio that allows users to buy
 ![Front page displaying a user's portfolio](/static/images/origamiTerminal-index-1.png)
 
 ## Libraries/Technologies Used
-Flask, Postgres, Bootstrap
+Flask, Postgres, Bootstrap, IEX API
+
+## How It Works
+`application.py` defines Flask routes to access the Postgres database. There are 2 database schemas, one for `user` and one for `history` (for transactions). `/templates` contain the HTMl/Jinja templates to be rendered. Some helper functions (currency formatting, API look-up...) are defined in `helpers.py`.
 
 ## Features
 - Look up stock price
